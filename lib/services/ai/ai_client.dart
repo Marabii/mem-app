@@ -81,7 +81,6 @@ class AiClient {
   /// Returns the assistant's raw message content.
   Future<String> complete(
     List<AiMessage> messages, {
-    bool jsonMode = true,
     int? maxTokens,
   }) async {
     if (model.trim().isEmpty) {
@@ -94,9 +93,11 @@ class AiClient {
       'temperature': temperature,
       'stream': false,
       'max_tokens': ?maxTokens,
-      // Honoured by OpenAI and newer LM Studio builds; harmlessly ignored
-      // elsewhere, which is why the parser never relies on it.
-      if (jsonMode) 'response_format': {'type': 'json_object'},
+      // No response_format here: OpenAI's `json_object` value is rejected
+      // outright by some OpenAI-compatible servers (they only accept
+      // `json_schema` or `text`), so this failed hard rather than being
+      // harmlessly ignored. The system prompt asks for bare JSON instead, and
+      // extractJsonObject() below tolerates fences or stray prose either way.
     };
 
     final res = await _send(() => http

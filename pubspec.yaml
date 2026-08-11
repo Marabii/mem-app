@@ -62,6 +62,7 @@ dev_dependencies:
   # SDK ships Dart 3.10.7 and pins meta 1.17.0.
   drift_dev: ">=2.30.0 <2.31.0"
   build_runner: ^2.4.0
+  flutter_launcher_icons: ^0.14.4
 
 # path_provider_foundation is the iOS/macOS implementation and is never compiled
 # for an Android-only app, but 2.6.0 pulls objective_c, whose native build hook
@@ -73,3 +74,16 @@ flutter:
   uses-material-design: true
   assets:
     - assets/web/
+    - assets/icons/
+
+# Generates mipmap-*/ic_launcher.png (legacy) and the adaptive icon XML +
+# foreground/background drawables from a single source image. The foreground
+# is the badge pre-scaled to 66% and centered on a transparent canvas so it
+# is never clipped by a launcher's mask shape (circle, squircle, rounded
+# square...); the background is the badge's own ring color for continuity.
+flutter_launcher_icons:
+  android: "ic_launcher"
+  image_path: "assets/icons/logo.png"
+  adaptive_icon_background: "#24262C"
+  adaptive_icon_foreground: "assets/icons/logo_foreground.png"
+  min_sdk_android: 24
