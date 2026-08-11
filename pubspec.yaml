@@ -1,0 +1,75 @@
+name: flutter_application_1
+description: "MemApp — an offline-first spaced repetition app powered by FSRS."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Scheduling
+  fsrs: ^2.0.1
+
+  # Local persistence
+  # Pinned to the 2.30 line: drift >=2.31 pulls sqlite3 3.x, which ships a
+  # native build hook that `dart compile` (build_runner's entrypoint) rejects
+  # on Dart 3.10.
+  drift: ">=2.30.0 <2.31.0"
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.6
+  path: ^1.9.0
+  sqlite3: ^2.6.0
+
+  # State management / DI
+  flutter_riverpod: ^2.6.1
+
+  # On-device web server. The LAN IP is read via dart:io NetworkInterface.list()
+  # rather than network_info_plus — no plugin, no extra permission, and it dodges
+  # a win32 version conflict with file_picker.
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+
+  # Notifications
+  flutter_local_notifications: ^22.3.0
+  timezone: ^0.11.1
+  flutter_timezone: ^5.1.0
+
+  # Settings + secrets
+  shared_preferences: ^2.5.5
+  # 11.x demands compileSdk 37; 9.x builds against 36 (Flutter 3.38 default).
+  flutter_secure_storage: ^9.2.4
+
+  # Import / export goes through a small Android SAF platform channel in
+  # MainActivity.kt (ACTION_OPEN_DOCUMENT / ACTION_CREATE_DOCUMENT). No plugin:
+  # file_picker and share_plus sit on opposite sides of a win32 ^5/^6 split that
+  # cannot be satisfied alongside the rest of these dependencies.
+
+  # AI (OpenAI-compatible endpoints)
+  http: ^1.2.0
+
+  # Content rendering
+  flutter_markdown_plus: ^1.0.12
+  collection: ^1.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # Capped below the versions that need analyzer ^13 / Dart 3.11 — this Flutter
+  # SDK ships Dart 3.10.7 and pins meta 1.17.0.
+  drift_dev: ">=2.30.0 <2.31.0"
+  build_runner: ^2.4.0
+
+# path_provider_foundation is the iOS/macOS implementation and is never compiled
+# for an Android-only app, but 2.6.0 pulls objective_c, whose native build hook
+# makes build_runner's `dart compile` entrypoint fail. 2.5.1 is hook-free.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/web/

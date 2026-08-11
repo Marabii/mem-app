@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MemApp</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">M</div>
+        <div>
+          <h1>MemApp</h1>
+          <p id="global-stats" class="muted">Loading…</p>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button id="new-topic-btn" class="btn btn-ghost btn-block">
+          <span class="plus">+</span> New topic
+        </button>
+      </div>
+
+      <nav id="topic-list" class="topic-list" aria-label="Topics"></nav>
+
+      <div class="sidebar-footer">
+        <a id="export-btn" class="btn btn-ghost btn-block" href="/api/export" download>Export JSON</a>
+        <button id="import-btn" class="btn btn-ghost btn-block">Import JSON</button>
+        <input type="file" id="import-input" accept=".json,application/json" hidden>
+        <p class="muted tiny">Served from your phone. Everything you change here
+          is saved on the device immediately.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-header">
+        <div>
+          <h2 id="topic-title">All cards</h2>
+          <p id="topic-subtitle" class="muted"></p>
+        </div>
+        <div class="header-actions">
+          <div class="search-wrap">
+            <input id="search" type="search" placeholder="Search cards…" autocomplete="off">
+          </div>
+          <button id="edit-topic-btn" class="btn btn-ghost" hidden>Edit topic</button>
+          <button id="new-card-btn" class="btn btn-primary"><span class="plus">+</span> New card</button>
+        </div>
+      </header>
+
+      <div id="card-list" class="card-list"></div>
+      <div id="empty" class="empty" hidden></div>
+    </main>
+  </div>
+
+  <!-- Card editor -->
+  <dialog id="card-dialog" class="dialog">
+    <form method="dialog" id="card-form">
+      <h3 id="card-dialog-title">New card</h3>
+
+      <label for="card-topic">Topic</label>
+      <select id="card-topic" required></select>
+
+      <label for="card-front">Front — the question</label>
+      <textarea id="card-front" rows="4" required placeholder="What does Rust's `?` operator do?"></textarea>
+
+      <label for="card-back">Back — the answer</label>
+      <textarea id="card-back" rows="7" placeholder="Propagates the error…&#10;&#10;```rust&#10;let f = File::open(path)?;&#10;```"></textarea>
+      <p class="hint">Markdown and fenced code blocks render in the app.</p>
+
+      <label for="card-tags">Tags</label>
+      <input id="card-tags" type="text" placeholder="ownership, errors" autocomplete="off">
+
+      <div class="dialog-actions">
+        <button type="button" id="card-delete" class="btn btn-danger" hidden>Delete</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Topic editor -->
+  <dialog id="topic-dialog" class="dialog">
+    <form method="dialog" id="topic-form">
+      <h3 id="topic-dialog-title">New topic</h3>
+
+      <label for="topic-name">Name</label>
+      <input id="topic-name" type="text" required placeholder="Rust" autocomplete="off">
+
+      <label for="topic-desc">Description</label>
+      <input id="topic-desc" type="text" placeholder="Ownership, lifetimes, async" autocomplete="off">
+
+      <label>Colour</label>
+      <div id="topic-colors" class="color-row"></div>
+
+      <div class="dialog-actions">
+        <button type="button" id="topic-delete" class="btn btn-danger" hidden>Delete</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Import -->
+  <dialog id="import-dialog" class="dialog">
+    <form method="dialog" id="import-form">
+      <h3>Import cards</h3>
+      <p id="import-summary" class="muted"></p>
+      <label class="radio">
+        <input type="radio" name="import-mode" value="merge" checked>
+        <span><strong>Merge</strong> — add what's missing, keep existing cards
+        and their review schedules untouched.</span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="import-mode" value="replace">
+        <span><strong>Replace</strong> — delete everything currently on the
+        device first.</span>
+      </label>
+      <div class="dialog-actions">
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
