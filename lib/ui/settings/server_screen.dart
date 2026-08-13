@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../services/web_server/server_keep_alive.dart';
 import '../../state/providers.dart';
 import '../widgets/common.dart';
 
@@ -109,6 +110,36 @@ class ServerScreen extends ConsumerWidget {
                         style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant),
                       ),
+                    if (state.running) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Icon(
+                            state.keepAlive
+                                ? Icons.lock_clock
+                                : Icons.warning_amber_rounded,
+                            size: 16,
+                            color: state.keepAlive
+                                ? const Color(0xFF10B981)
+                                : theme.colorScheme.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              state.keepAlive
+                                  ? 'Keeps running with the screen off. Stop it '
+                                      'from here or from the notification.'
+                                  : 'Running without the background service — '
+                                      'keep this screen on while you edit.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
@@ -180,15 +211,31 @@ class ServerScreen extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SectionHeader('Staying alive'),
+            SettingsGroup(children: [
+              ListTile(
+                leading: const Icon(Icons.battery_saver),
+                title: const Text('Battery settings'),
+                subtitle: const Text(
+                    'If the server still dies with the screen off, exclude '
+                    'MemApp from battery optimisation here'),
+                trailing: const Icon(Icons.open_in_new, size: 18),
+                onTap: () => _openBatterySettings(context),
+              ),
+            ]),
+
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'Android may suspend the app after a while in the background, '
-                'which stops the server. Keep MemApp open on screen while you '
-                'are editing from a browser.',
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                'While the server runs, MemApp holds a foreground service with '
+                'a wake lock, so locking the phone no longer stops it. Android '
+                'still reclaims the app if memory runs short, and some phones '
+                'add their own background limits on top.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
               ),
             ),
           ],
@@ -200,7 +247,9 @@ class ServerScreen extends ConsumerWidget {
   Future<void> _start(WidgetRef ref, int port) async {
     final service = ref.read(webServerServiceProvider);
     final state = await service.start(preferredPort: port);
-    if (state.running && state.url != null) {
+    // With the foreground service up, the notification is Android's and shows
+    // a Stop action. This is the fallback for when it could not be started.
+    if (state.running && state.url != null && !state.keepAlive) {
       await ref.read(notificationServiceProvider).showServerRunning(state.url!);
     }
   }
@@ -208,6 +257,14 @@ class ServerScreen extends ConsumerWidget {
   Future<void> _stop(WidgetRef ref) async {
     await ref.read(webServerServiceProvider).stop();
     await ref.read(notificationServiceProvider).hideServerRunning();
+  }
+
+  Future<void> _openBatterySettings(BuildContext context) async {
+    final opened = await ServerKeepAlive().openBatterySettings();
+    if (!opened && context.mounted) {
+      showSnack(context, 'Could not open Android battery settings',
+          isError: true);
+    }
   }
 
   void _copy(BuildContext context, String url) {

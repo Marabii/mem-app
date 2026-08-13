@@ -8,6 +8,7 @@ import 'package:shelf_router/shelf_router.dart';
 import '../../data/database.dart';
 import '../../data/fsrs_mapping.dart';
 import '../export_service.dart';
+import '../highlight/code_language.dart';
 
 /// Serves the companion web UI and its JSON API.
 ///
@@ -33,6 +34,7 @@ class ApiRouter {
       ..post('/api/cards', _createCard)
       ..put('/api/cards/<id>', _updateCard)
       ..delete('/api/cards/<id>', _deleteCard)
+      ..get('/api/languages', _listLanguages)
       ..get('/api/export', _exportAll)
       ..post('/api/import', _importAll)
       ..mount('/', _staticHandler);
@@ -251,6 +253,40 @@ class ApiRouter {
       throw _ApiError(e.message, 400);
     }
   }
+
+  // ------------------------------------------------- syntax highlighting
+
+  /// The highlighter's language table, so `assets/web/syntax.js` colours code
+  /// with exactly the keywords the app itself uses instead of keeping its own
+  /// copy that can drift out of date.
+  Response _listLanguages(Request _) => _json({
+        'languages': [
+          for (final l in CodeLanguages.all)
+            {
+              'id': l.id,
+              'label': l.label,
+              'aliases': l.aliases,
+              'keywords': l.keywords.toList(),
+              'types': l.types.toList(),
+              'literals': l.literals.toList(),
+              'lineComments': l.lineComments,
+              'blockComment':
+                  l.blockComment == null ? null : [l.blockComment!.$1, l.blockComment!.$2],
+              'stringDelimiters': l.stringDelimiters.toList(),
+              'charLiterals': l.charLiterals,
+              'tripleQuotes': l.tripleQuotes,
+              'rawStrings': l.rustRawStrings || l.cppRawStrings,
+              'preprocessor': l.preprocessor,
+              'attributes': l.attributes,
+              'annotations': l.annotations,
+              'dollarVariables': l.dollarVariables,
+              'macroBang': l.macroBang,
+              'lifetimes': l.lifetimes,
+              'typesByCase': l.typesByCase,
+              'caseInsensitiveKeywords': l.caseInsensitiveKeywords,
+            },
+        ],
+      });
 
   // ----------------------------------------------------- static web assets
 

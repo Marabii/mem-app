@@ -328,7 +328,7 @@ class _StrugglePreview extends ConsumerWidget {
             ListTile(
               dense: true,
               title: Text(
-                entry.card.front,
+                cardPreviewText(entry.card.front),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w600),

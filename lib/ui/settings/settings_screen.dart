@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/export_service.dart';
 import '../../services/file_channel.dart';
+import '../../services/reminder_plan.dart';
+import '../../services/settings_service.dart';
 import '../../state/providers.dart';
 import '../widgets/common.dart';
 import 'ai_settings_screen.dart';
@@ -49,6 +51,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 onTap: settings.remindersEnabled ? _pickTime : null,
+              ),
+              SwitchListTile(
+                value: settings.eveningNudgesEnabled,
+                secondary: const Icon(Icons.bedtime_outlined),
+                title: const Text('Keep nudging until midnight'),
+                subtitle: Text(settings.eveningNudgesEnabled
+                    ? '${settings.eveningNudgeCount} more reminders across the '
+                        'last ${settings.eveningNudgeWindowHours} '
+                        '${settings.eveningNudgeWindowHours == 1 ? 'hour' : 'hours'} '
+                        'of the day, while cards are still due'
+                    : 'One reminder a day, and that is it'),
+                onChanged: settings.remindersEnabled ? _toggleNudges : null,
+              ),
+              ListTile(
+                enabled: settings.remindersEnabled &&
+                    settings.eveningNudgesEnabled,
+                leading: const Icon(Icons.tune),
+                title: const Text('How persistent'),
+                subtitle: Text(_nudgeSchedulePreview(settings)),
+                onTap: settings.remindersEnabled && settings.eveningNudgesEnabled
+                    ? _editNudges
+                    : null,
               ),
               ListTile(
                 leading: const Icon(Icons.notifications_active_outlined),
@@ -200,6 +224,121 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(settingsProvider.notifier).edit((s) => s.copyWith(
           reminderHour: picked.hour,
           reminderMinute: picked.minute,
+        ));
+    if (!mounted) return;
+    await refreshRemindersFrom(ref);
+  }
+
+  Future<void> _toggleNudges(bool value) async {
+    await ref
+        .read(settingsProvider.notifier)
+        .edit((s) => s.copyWith(eveningNudgesEnabled: value));
+    if (!mounted) return;
+    await refreshRemindersFrom(ref);
+  }
+
+  /// "22:00, 22:30, 23:00, 23:30" — what the current settings actually produce.
+  String _nudgeSchedulePreview(AppSettings settings) {
+    if (!settings.eveningNudgesEnabled) return 'Off';
+    // Built from a fixed day so the preview shows the whole evening rather
+    // than only the nudges still ahead of the current time.
+    final plan = ReminderPlan.build(
+      settings: settings.copyWith(remindersEnabled: true),
+      now: DateTime(2000),
+    ).where((r) => r.kind == ReminderKind.nudge).take(8);
+
+    final times = plan.map((r) => TimeOfDay.fromDateTime(r.at).format(context));
+    return times.join(', ');
+  }
+
+  Future<void> _editNudges() async {
+    final settings = ref.read(settingsProvider);
+    var hours = settings.eveningNudgeWindowHours;
+    var count = settings.eveningNudgeCount;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final theme = Theme.of(context);
+          final preview = _nudgeSchedulePreview(settings.copyWith(
+            eveningNudgesEnabled: true,
+            eveningNudgeWindowHours: hours,
+            eveningNudgeCount: count,
+          ));
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Evening nudges',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Each one is only sent if cards are still due when it '
+                    'fires. Reviewing cancels the rest of the evening.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 18),
+                  Text('Window before midnight',
+                      style: theme.textTheme.labelLarge),
+                  Slider(
+                    value: hours.toDouble(),
+                    min: 1,
+                    max: 6,
+                    divisions: 5,
+                    label: '$hours h',
+                    onChanged: (v) =>
+                        setSheetState(() => hours = v.round()),
+                  ),
+                  Text('Number of nudges', style: theme.textTheme.labelLarge),
+                  Slider(
+                    value: count.toDouble(),
+                    min: 1,
+                    max: 6,
+                    divisions: 5,
+                    label: '$count',
+                    onChanged: (v) => setSheetState(() => count = v.round()),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.notifications_none,
+                          size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(preview,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (saved != true) return;
+    await ref.read(settingsProvider.notifier).edit((s) => s.copyWith(
+          eveningNudgeWindowHours: hours,
+          eveningNudgeCount: count,
         ));
     if (!mounted) return;
     await refreshRemindersFrom(ref);

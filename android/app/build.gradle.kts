@@ -40,6 +40,10 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // NotificationCompat, for the web server's foreground-service notification.
+    // The Flutter embedding pulls androidx.core in transitively; naming it here
+    // keeps ServerForegroundService.kt compiling if that ever changes.
+    implementation("androidx.core:core-ktx:1.13.1")
 }
 
 flutter {

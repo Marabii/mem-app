@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../theme/app_theme.dart';
+import 'code_block.dart';
 
 /// Centred illustration + message used wherever a list can be empty.
 class EmptyState extends StatelessWidget {
@@ -87,6 +88,9 @@ class CardContent extends StatelessWidget {
     return MarkdownBody(
       data: data,
       selectable: true,
+      // Code blocks scroll sideways and carry a copy button, so they are built
+      // as widgets rather than as selectable rich text.
+      builders: {'pre': CodeBlockBuilder(textStyle: base)},
       styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
         p: base,
         textAlign: textAlign == TextAlign.center
@@ -97,13 +101,10 @@ class CardContent extends StatelessWidget {
           fontSize: (base.fontSize ?? 16) - 2,
           backgroundColor: Colors.transparent,
         ),
-        codeblockDecoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest
-              .withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        codeblockPadding: const EdgeInsets.all(12),
+        // The block itself is drawn by CodeBlockBuilder; this only has to stay
+        // out of its way.
+        codeblockDecoration: const BoxDecoration(),
+        codeblockPadding: EdgeInsets.zero,
         blockquoteDecoration: BoxDecoration(
           border: Border(
             left: BorderSide(color: theme.colorScheme.primary, width: 3),
@@ -113,6 +114,20 @@ class CardContent extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Flattens a card face to one line for list rows: fences and emphasis markers
+/// go, the code inside a block stays. Without this a card whose answer is a
+/// code block previews as "```rust let f = ... ```".
+String cardPreviewText(String markdown) {
+  final unfenced = markdown.replaceAllMapped(
+    RegExp(r'```[^\n]*\n?([\s\S]*?)(?:```|$)'),
+    (match) => ' ${match[1] ?? ''} ',
+  );
+  return unfenced
+      .replaceAll(RegExp(r'[`*_]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 }
 
 /// Small labelled number used in the topic/stat headers.

@@ -50,8 +50,11 @@ dependencies:
   # AI (OpenAI-compatible endpoints)
   http: ^1.2.0
 
-  # Content rendering
+  # Content rendering. `markdown` is flutter_markdown_plus's own parser — it is
+  # a direct dependency here because the code-block builder in
+  # lib/ui/widgets/code_block.dart works with its element tree.
   flutter_markdown_plus: ^1.0.12
+  markdown: ^7.3.1
   collection: ^1.19.0
 
 dev_dependencies:

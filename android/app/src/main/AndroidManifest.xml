@@ -5,6 +5,15 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <!-- Wi-Fi lock: keeps the radio out of power save while the server is up. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+
+    <!-- Keeping the web server reachable with the screen off. Without a
+         foreground service Android caches the process, the app freezer
+         suspends the Dart isolate, and the socket goes quiet. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <!-- Review reminders. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -39,6 +48,22 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <!-- Holds the process in the foreground while the LAN server is up.
+             `specialUse` because this is neither media nor location nor a
+             finite data transfer: it is an interactive server the user starts
+             and stops by hand, and `dataSync` would cap it at a few hours a
+             day. stopWithTask, because swiping the app away takes the Flutter
+             engine — and the server with it. -->
+        <service
+            android:name=".ServerForegroundService"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Serves the user's own flashcards to a browser on their local network for as long as they leave the server switched on."/>
+        </service>
 
         <!-- Re-registers scheduled reminders after a reboot or an app update. -->
         <receiver

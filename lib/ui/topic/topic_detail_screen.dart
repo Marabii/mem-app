@@ -283,7 +283,7 @@ class _CardTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  card.front,
+                  cardPreviewText(card.front),
                   style: theme.textTheme.bodyLarge
                       ?.copyWith(fontWeight: FontWeight.w600),
                   maxLines: 2,
@@ -292,7 +292,7 @@ class _CardTile extends StatelessWidget {
                 if (card.back.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    card.back.replaceAll('\n', ' '),
+                    cardPreviewText(card.back),
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     maxLines: 2,

@@ -300,5 +300,26 @@ void main() {
     test('an unknown path is a 404, not a crash', () async {
       expect((await get('/api/nope')).statusCode, 404);
     });
+
+    test('serves the highlighter language table the browser UI needs',
+        () async {
+      final body = await json(await get('/api/languages'));
+      final languages = (body['languages'] as List).cast<Map<String, dynamic>>();
+
+      expect(languages.map((l) => l['id']),
+          containsAll(['rust', 'java', 'c', 'cpp']));
+
+      final rust = languages.firstWhere((l) => l['id'] == 'rust');
+      expect(rust['label'], 'Rust');
+      expect(rust['keywords'], contains('fn'));
+      expect(rust['aliases'], contains('rs'));
+      expect(rust['blockComment'], ['/*', '*/']);
+      expect(rust['macroBang'], isTrue);
+
+      // C++ is reachable by the name a fence would realistically use.
+      final cpp = languages.firstWhere((l) => l['id'] == 'cpp');
+      expect(cpp['aliases'], contains('c++'));
+      expect(cpp['preprocessor'], isTrue);
+    });
   });
 }

@@ -185,13 +185,141 @@ function renderCards() {
     }
 
     el.innerHTML = `
-      <div class="front">${escapeHtml(card.front)}</div>
-      <div class="back">${escapeHtml(card.back)}</div>
+      <div class="front">${Syntax.renderCardText(card.front)}</div>
+      <div class="back">${Syntax.renderCardText(card.back)}</div>
       <div class="card-meta">${pills.join('')}</div>`;
 
     el.addEventListener('click', () => openCardDialog(card));
     list.appendChild(el);
   }
+}
+
+// ------------------------------------------------------- editor toolbars
+
+const CODE_LANGUAGE_KEY = 'memapp.codeLanguage';
+// Used until /api/languages answers, and if it never does.
+const FALLBACK_LANGUAGES = [
+  { id: 'rust', label: 'Rust' }, { id: 'java', label: 'Java' },
+  { id: 'c', label: 'C' }, { id: 'cpp', label: 'C++' },
+];
+
+function preferredLanguage() {
+  return localStorage.getItem(CODE_LANGUAGE_KEY) || 'rust';
+}
+
+/** Fills the toolbar next to each textarea. Called once the languages load. */
+function buildFormatBars() {
+  const languages = Syntax.languages().length
+    ? Syntax.languages()
+    : FALLBACK_LANGUAGES;
+
+  for (const bar of document.querySelectorAll('.format-bar')) {
+    const field = () => $(bar.dataset.field);
+    bar.innerHTML = '';
+
+    const button = (html, title, onClick, className = 'fmt') => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = className;
+      b.title = title;
+      b.innerHTML = html;
+      b.addEventListener('click', onClick);
+      bar.appendChild(b);
+      return b;
+    };
+
+    button('<strong>B</strong>', 'Bold', () => wrapInline(field(), '**'));
+    button('<em>I</em>', 'Italic', () => wrapInline(field(), '*'));
+    button('&lt;/&gt;', 'Inline code', () => wrapInline(field(), '`'));
+
+    const select = document.createElement('select');
+    select.className = 'lang-select';
+    select.setAttribute('aria-label', 'Code block language');
+    select.innerHTML = languages
+      .map((l) => `<option value="${l.id}">${escapeHtml(l.label)}</option>`)
+      .join('');
+    select.value = preferredLanguage();
+    select.addEventListener('change', () => {
+      localStorage.setItem(CODE_LANGUAGE_KEY, select.value);
+      // Keep every bar in the dialog on the same language.
+      for (const other of document.querySelectorAll('.lang-select')) {
+        other.value = select.value;
+      }
+    });
+    bar.appendChild(select);
+
+    button('Code block', 'Insert a fenced code block',
+      () => insertCodeBlock(field(), select.value), 'fmt code');
+  }
+}
+
+/**
+ * Wraps the selection in a fenced block, or drops in an empty one with the
+ * caret inside. Mirrors MarkdownActions on the Dart side, including the blank
+ * lines a fence needs to start a block.
+ */
+function insertCodeBlock(el, language) {
+  if (!el) return;
+  const value = el.value;
+  const start = el.selectionStart ?? value.length;
+  const end = el.selectionEnd ?? start;
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+  const body = value.slice(start, end).trim();
+
+  const lead = before.length === 0 || before.endsWith('\n\n') ? ''
+    : before.endsWith('\n') ? '\n' : '\n\n';
+  const trail = after.length === 0 ? '\n' : after.startsWith('\n') ? '' : '\n\n';
+  const open = '```' + language + '\n';
+
+  el.value = `${before}${lead}${open}${body}\n\`\`\`${trail}${after}`;
+  const cursor = before.length + lead.length + open.length + body.length;
+  el.focus();
+  el.setSelectionRange(cursor, cursor);
+  el.dispatchEvent(new Event('input'));
+}
+
+/** `**bold**`, `*italic*`, `` `code` `` — wraps, or unwraps when already applied. */
+function wrapInline(el, marker) {
+  if (!el) return;
+  const value = el.value;
+  const start = el.selectionStart ?? value.length;
+  const end = el.selectionEnd ?? start;
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+  const body = value.slice(start, end);
+
+  let text;
+  let from;
+  if (before.endsWith(marker) && after.startsWith(marker)) {
+    text = before.slice(0, -marker.length) + body + after.slice(marker.length);
+    from = before.length - marker.length;
+  } else {
+    text = before + marker + body + marker + after;
+    from = before.length + marker.length;
+  }
+
+  el.value = text;
+  el.focus();
+  el.setSelectionRange(from, from + body.length);
+  el.dispatchEvent(new Event('input'));
+}
+
+function toggleCardPreview() {
+  const panel = $('card-preview');
+  const show = panel.hidden;
+  panel.hidden = !show;
+  $('card-preview-toggle').textContent = show ? 'Hide preview' : 'Preview';
+  renderCardPreview();
+}
+
+function renderCardPreview() {
+  const panel = $('card-preview');
+  if (panel.hidden) return;
+  panel.innerHTML =
+    Syntax.renderCardText($('card-front').value) +
+    '<hr class="preview-divider">' +
+    Syntax.renderCardText($('card-back').value);
 }
 
 // ----------------------------------------------------------- card dialog
@@ -215,6 +343,9 @@ function openCardDialog(card) {
   $('card-front').value = card ? card.front : '';
   $('card-back').value = card ? card.back : '';
   $('card-tags').value = card ? (card.tags || []).join(', ') : '';
+
+  $('card-preview').hidden = true;
+  $('card-preview-toggle').textContent = 'Preview';
 
   $('card-dialog').showModal();
   setTimeout(() => $('card-front').focus(), 30);
@@ -381,6 +512,11 @@ function init() {
   $('card-form').addEventListener('submit', saveCard);
   $('card-delete').addEventListener('click', deleteCard);
 
+  $('card-preview-toggle').addEventListener('click', toggleCardPreview);
+  for (const id of ['card-front', 'card-back']) {
+    $(id).addEventListener('input', renderCardPreview);
+  }
+
   $('new-topic-btn').addEventListener('click', () => openTopicDialog(null));
   $('edit-topic-btn').addEventListener('click', () => {
     const topic = state.topics.find((t) => t.id === state.selectedTopicId);
@@ -424,6 +560,14 @@ function init() {
       refresh({ quiet: true });
     }
   }, 8000);
+
+  // The toolbars need the language table; the card list needs it to colour
+  // fenced blocks. Both degrade to plain text if the request fails.
+  buildFormatBars();
+  Syntax.load().then(() => {
+    buildFormatBars();
+    renderCards();
+  });
 
   refresh();
 }

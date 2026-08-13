@@ -63,12 +63,22 @@
       <label for="card-topic">Topic</label>
       <select id="card-topic" required></select>
 
-      <label for="card-front">Front — the question</label>
+      <div class="field-head">
+        <label for="card-front">Front — the question</label>
+        <div class="format-bar" data-field="card-front"></div>
+      </div>
       <textarea id="card-front" rows="4" required placeholder="What does Rust's `?` operator do?"></textarea>
 
-      <label for="card-back">Back — the answer</label>
+      <div class="field-head">
+        <label for="card-back">Back — the answer</label>
+        <div class="format-bar" data-field="card-back"></div>
+      </div>
       <textarea id="card-back" rows="7" placeholder="Propagates the error…&#10;&#10;```rust&#10;let f = File::open(path)?;&#10;```"></textarea>
-      <p class="hint">Markdown and fenced code blocks render in the app.</p>
+      <div class="hint-row">
+        <p class="hint">Markdown and fenced code blocks render in the app.</p>
+        <button type="button" id="card-preview-toggle" class="btn btn-ghost btn-tiny">Preview</button>
+      </div>
+      <div id="card-preview" class="card-preview" hidden></div>
 
       <label for="card-tags">Tags</label>
       <input id="card-tags" type="text" placeholder="ownership, errors" autocomplete="off">
@@ -130,6 +140,7 @@
 
   <div id="toast" class="toast" hidden></div>
 
+  <script src="syntax.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

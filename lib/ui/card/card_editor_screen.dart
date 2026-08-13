@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/database.dart';
 import '../../data/fsrs_mapping.dart';
+import '../../services/highlight/code_language.dart';
 import '../../state/providers.dart';
 import '../widgets/common.dart';
+import 'markdown_actions.dart';
 
 class CardEditorScreen extends ConsumerStatefulWidget {
   const CardEditorScreen({super.key, required this.topicId, this.card});
@@ -23,6 +25,7 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
   late final _tags =
       TextEditingController(text: widget.card?.tagList.join(', ') ?? '');
   final _frontFocus = FocusNode();
+  final _backFocus = FocusNode();
 
   late int _topicId = widget.card?.topicId ?? widget.topicId;
   late bool _suspended = widget.card?.suspended ?? false;
@@ -38,7 +41,33 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
     _back.dispose();
     _tags.dispose();
     _frontFocus.dispose();
+    _backFocus.dispose();
     super.dispose();
+  }
+
+  /// Asks which language, then drops a fence into [controller] around whatever
+  /// was selected.
+  Future<void> _insertCodeBlock(
+    TextEditingController controller,
+    FocusNode focus,
+  ) async {
+    final settings = ref.read(settingsProvider);
+    final language = await showCodeLanguageSheet(
+      context,
+      selected: settings.codeLanguage,
+    );
+    if (language == null || !mounted) return;
+
+    if (language != settings.codeLanguage) {
+      await ref
+          .read(settingsProvider.notifier)
+          .edit((s) => s.copyWith(codeLanguage: language));
+    }
+    MarkdownActions.apply(
+      controller,
+      MarkdownActions.insertCodeBlock(controller.value, language),
+    );
+    focus.requestFocus();
   }
 
   String get _normalizedTags => _tags.text
@@ -152,7 +181,17 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            _FieldLabel('Front', hint: 'the question'),
+            _FieldLabel(
+              'Front',
+              hint: 'the question',
+              trailing: _preview
+                  ? null
+                  : _FormatBar(
+                      controller: _front,
+                      focusNode: _frontFocus,
+                      onInsertCode: () => _insertCodeBlock(_front, _frontFocus),
+                    ),
+            ),
             if (_preview)
               _PreviewBox(data: _front.text)
             else
@@ -168,12 +207,23 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
                 ),
               ),
             const SizedBox(height: 20),
-            _FieldLabel('Back', hint: 'the answer'),
+            _FieldLabel(
+              'Back',
+              hint: 'the answer',
+              trailing: _preview
+                  ? null
+                  : _FormatBar(
+                      controller: _back,
+                      focusNode: _backFocus,
+                      onInsertCode: () => _insertCodeBlock(_back, _backFocus),
+                    ),
+            ),
             if (_preview)
               _PreviewBox(data: _back.text)
             else
               TextField(
                 controller: _back,
+                focusNode: _backFocus,
                 maxLines: null,
                 minLines: 6,
                 textCapitalization: TextCapitalization.sentences,
@@ -249,37 +299,174 @@ class _CardEditorScreenState extends ConsumerState<CardEditorScreen> {
 }
 
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.label, {this.hint});
+  const _FieldLabel(this.label, {this.hint, this.trailing});
 
   final String label;
   final String? hint;
+
+  /// Formatting buttons for the field this label belongs to.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      padding: const EdgeInsets.only(left: 4, bottom: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
         children: [
-          Text(
-            label,
-            style: theme.textTheme.labelLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          if (hint != null) ...[
-            const SizedBox(width: 6),
-            Text(
-              '— ${hint!}',
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      '— ${hint!}',
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
+          const Spacer(),
+          ?trailing,
         ],
       ),
     );
   }
+}
+
+/// Markdown shortcuts for one text field: a code block, plus the three inline
+/// markers that are awkward to type on a phone keyboard.
+class _FormatBar extends StatelessWidget {
+  const _FormatBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onInsertCode,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onInsertCode;
+
+  void _wrap(String marker) {
+    MarkdownActions.apply(
+      controller,
+      MarkdownActions.wrapInline(controller.value, marker),
+    );
+    focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Widget button(IconData icon, String tooltip, VoidCallback onPressed) =>
+        IconButton(
+          onPressed: onPressed,
+          tooltip: tooltip,
+          icon: Icon(icon),
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.all(6),
+          constraints: const BoxConstraints(),
+          color: theme.colorScheme.onSurfaceVariant,
+        );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button(Icons.format_bold, 'Bold', () => _wrap('**')),
+        button(Icons.format_italic, 'Italic', () => _wrap('*')),
+        button(Icons.code, 'Inline code', () => _wrap('`')),
+        const SizedBox(width: 4),
+        // The headline action, so it gets a label rather than an icon.
+        TextButton.icon(
+          onPressed: onInsertCode,
+          icon: const Icon(Icons.data_object, size: 17),
+          label: const Text('Code block'),
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            textStyle: theme.textTheme.labelMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Language picker for a new code block. Returns the fence info string to use,
+/// or null if the sheet was dismissed.
+Future<String?> showCodeLanguageSheet(
+  BuildContext context, {
+  required String selected,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) {
+      final theme = Theme.of(context);
+      return SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                child: Text('Code block language',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: Text(
+                  'The block is highlighted here and in the browser editor.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final language in CodeLanguages.all)
+                      ListTile(
+                        onTap: () => Navigator.pop(context, language.id),
+                        title: Text(language.label),
+                        subtitle: Text('```${language.id}'),
+                        dense: true,
+                        trailing: language.id == selected
+                            ? Icon(Icons.check_rounded,
+                                color: theme.colorScheme.primary)
+                            : null,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _PreviewBox extends StatelessWidget {

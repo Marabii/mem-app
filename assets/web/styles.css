@@ -276,19 +276,19 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
   background: var(--surface);
   color: var(--text);
   padding: 0;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 60px);
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
 }
 
 .dialog::backdrop { background: rgba(0, 0, 0, .55); }
 
 .dialog form {
-  padding: 22px 24px;
+  padding: 28px 32px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   overflow-y: auto;
-  max-height: calc(100vh - 60px);
+  max-height: calc(100vh - 32px);
 }
 
 .dialog label {
@@ -334,9 +334,14 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
 
 .dialog-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
-  margin-top: 22px;
+  margin-top: 26px;
+}
+
+.dialog-actions .btn {
+  padding: 11px 20px;
+  font-size: 14.5px;
 }
 
 .color-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
@@ -369,6 +374,179 @@ h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
 }
 
 .toast.error { border-color: var(--danger); color: var(--danger); }
+
+/* --------------------------------------------------------------- code */
+
+/* Token colours mirror lib/ui/widgets/code_block.dart so a card looks the
+   same on the phone and in the browser. */
+:root {
+  --code-bg: #13161e;
+  --code-head: #1a1e28;
+  --code-border: #262b38;
+  --code-text: #d5dae5;
+  --tok-kw: #c792ea;
+  --tok-typ: #ffcb6b;
+  --tok-lit: #f78c6c;
+  --tok-num: #f78c6c;
+  --tok-str: #9ece6a;
+  --tok-cmt: #6b7385;
+  --tok-fn: #82aaff;
+  --tok-meta: #89ddff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --code-bg: #f8f8fc;
+    --code-head: #f0f1f6;
+    --code-border: #e1e3ec;
+    --code-text: #383a42;
+    --tok-kw: #a626a4;
+    --tok-typ: #9a6400;
+    --tok-lit: #b2432f;
+    --tok-num: #b2432f;
+    --tok-str: #3f8f3b;
+    --tok-cmt: #9599a3;
+    --tok-fn: #3b69d6;
+    --tok-meta: #0184bc;
+  }
+}
+
+.code-block {
+  position: relative;
+  margin: 8px 0;
+  padding: 24px 12px 11px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 10px;
+  overflow-x: auto;
+  color: var(--code-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.code-block::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 10px;
+  background: var(--code-head);
+  border-bottom: 1px solid var(--code-border);
+  border-radius: 9px 9px 0 0;
+  color: var(--tok-cmt);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .92em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+
+.tok-kw { color: var(--tok-kw); }
+.tok-typ { color: var(--tok-typ); }
+.tok-lit { color: var(--tok-lit); }
+.tok-num { color: var(--tok-num); }
+.tok-str { color: var(--tok-str); }
+.tok-cmt { color: var(--tok-cmt); font-style: italic; }
+.tok-fn { color: var(--tok-fn); }
+.tok-meta { color: var(--tok-meta); }
+
+/* The list preview keeps blocks short — the full card is one click away.
+   A plain max-height beats line-clamp here: a clamped -webkit-box cannot lay
+   out the <pre> element a fenced block turns into. */
+.card .front, .card .back { white-space: pre-wrap; }
+.card .back { display: block; max-height: 168px; overflow: hidden; }
+.card .code-block { max-height: 132px; font-size: 11.5px; }
+
+/* -------------------------------------------- editor formatting toolbar */
+
+.field-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.field-head label { margin-top: 10px; }
+
+.format-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fmt {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fmt:hover { background: var(--surface-2); color: var(--text); }
+.fmt.code {
+  height: 40px;
+  width: 200px;
+  padding: 0 14px;
+  border-color: var(--border);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.fmt.code:hover { border-color: var(--primary); color: var(--primary); }
+
+.lang-select {
+  height: 40px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.btn-tiny { padding: 5px 11px; font-size: 12.5px; }
+
+.card-preview {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.card-preview .preview-divider {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
 
 /* -------------------------------------------------------------- mobile */
 

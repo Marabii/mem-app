@@ -10,6 +10,9 @@ class AppSettings {
     this.remindersEnabled = false,
     this.reminderHour = 9,
     this.reminderMinute = 0,
+    this.eveningNudgesEnabled = true,
+    this.eveningNudgeWindowHours = 2,
+    this.eveningNudgeCount = 4,
     this.desiredRetention = 0.9,
     this.maximumIntervalDays = 36500,
     this.enableFuzzing = true,
@@ -22,11 +25,22 @@ class AppSettings {
     this.aiModel = '',
     this.aiTemperature = 0.4,
     this.aiTimeoutSeconds = 180,
+    this.codeLanguage = 'rust',
   });
 
   final bool remindersEnabled;
   final int reminderHour;
   final int reminderMinute;
+
+  /// Extra reminders through the end of the day, for cards that are still due
+  /// after the daily reminder has been ignored.
+  final bool eveningNudgesEnabled;
+
+  /// How much of the run-up to midnight the nudges cover.
+  final int eveningNudgeWindowHours;
+
+  /// How many nudges are spread across that window.
+  final int eveningNudgeCount;
 
   // FSRS tuning
   final double desiredRetention;
@@ -47,6 +61,9 @@ class AppSettings {
   final double aiTemperature;
   final int aiTimeoutSeconds;
 
+  /// Language the card editor last inserted a code block in.
+  final String codeLanguage;
+
   TimeOfDay get reminderTime =>
       TimeOfDay(hour: reminderHour, minute: reminderMinute);
 
@@ -56,6 +73,9 @@ class AppSettings {
     bool? remindersEnabled,
     int? reminderHour,
     int? reminderMinute,
+    bool? eveningNudgesEnabled,
+    int? eveningNudgeWindowHours,
+    int? eveningNudgeCount,
     double? desiredRetention,
     int? maximumIntervalDays,
     bool? enableFuzzing,
@@ -68,11 +88,16 @@ class AppSettings {
     String? aiModel,
     double? aiTemperature,
     int? aiTimeoutSeconds,
+    String? codeLanguage,
   }) =>
       AppSettings(
         remindersEnabled: remindersEnabled ?? this.remindersEnabled,
         reminderHour: reminderHour ?? this.reminderHour,
         reminderMinute: reminderMinute ?? this.reminderMinute,
+        eveningNudgesEnabled: eveningNudgesEnabled ?? this.eveningNudgesEnabled,
+        eveningNudgeWindowHours:
+            eveningNudgeWindowHours ?? this.eveningNudgeWindowHours,
+        eveningNudgeCount: eveningNudgeCount ?? this.eveningNudgeCount,
         desiredRetention: desiredRetention ?? this.desiredRetention,
         maximumIntervalDays: maximumIntervalDays ?? this.maximumIntervalDays,
         enableFuzzing: enableFuzzing ?? this.enableFuzzing,
@@ -86,6 +111,7 @@ class AppSettings {
         aiModel: aiModel ?? this.aiModel,
         aiTemperature: aiTemperature ?? this.aiTemperature,
         aiTimeoutSeconds: aiTimeoutSeconds ?? this.aiTimeoutSeconds,
+        codeLanguage: codeLanguage ?? this.codeLanguage,
       );
 }
 
@@ -116,6 +142,10 @@ class SettingsService {
       remindersEnabled: _prefs.getBool('remindersEnabled') ?? false,
       reminderHour: _prefs.getInt('reminderHour') ?? 9,
       reminderMinute: _prefs.getInt('reminderMinute') ?? 0,
+      eveningNudgesEnabled: _prefs.getBool('eveningNudgesEnabled') ?? true,
+      eveningNudgeWindowHours:
+          (_prefs.getInt('eveningNudgeWindowHours') ?? 2).clamp(1, 6),
+      eveningNudgeCount: (_prefs.getInt('eveningNudgeCount') ?? 4).clamp(1, 8),
       desiredRetention: _prefs.getDouble('desiredRetention') ?? 0.9,
       maximumIntervalDays: _prefs.getInt('maximumIntervalDays') ?? 36500,
       enableFuzzing: _prefs.getBool('enableFuzzing') ?? true,
@@ -130,6 +160,7 @@ class SettingsService {
       aiModel: _prefs.getString('aiModel') ?? '',
       aiTemperature: _prefs.getDouble('aiTemperature') ?? 0.4,
       aiTimeoutSeconds: _prefs.getInt('aiTimeoutSeconds') ?? 180,
+      codeLanguage: _prefs.getString('codeLanguage') ?? 'rust',
     );
   }
 
@@ -137,6 +168,9 @@ class SettingsService {
     await _prefs.setBool('remindersEnabled', s.remindersEnabled);
     await _prefs.setInt('reminderHour', s.reminderHour);
     await _prefs.setInt('reminderMinute', s.reminderMinute);
+    await _prefs.setBool('eveningNudgesEnabled', s.eveningNudgesEnabled);
+    await _prefs.setInt('eveningNudgeWindowHours', s.eveningNudgeWindowHours);
+    await _prefs.setInt('eveningNudgeCount', s.eveningNudgeCount);
     await _prefs.setDouble('desiredRetention', s.desiredRetention);
     await _prefs.setInt('maximumIntervalDays', s.maximumIntervalDays);
     await _prefs.setBool('enableFuzzing', s.enableFuzzing);
@@ -151,6 +185,7 @@ class SettingsService {
     await _prefs.setString('aiModel', s.aiModel);
     await _prefs.setDouble('aiTemperature', s.aiTemperature);
     await _prefs.setInt('aiTimeoutSeconds', s.aiTimeoutSeconds);
+    await _prefs.setString('codeLanguage', s.codeLanguage);
   }
 
   /// Secure storage can throw on devices with a broken keystore; a missing key

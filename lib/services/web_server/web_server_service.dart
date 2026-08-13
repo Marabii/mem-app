@@ -8,6 +8,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import '../../data/database.dart';
 import '../export_service.dart';
 import 'api_router.dart';
+import 'server_keep_alive.dart';
 
 @immutable
 class WebServerState {
@@ -18,6 +19,7 @@ class WebServerState {
     this.port,
     this.requestCount = 0,
     this.error,
+    this.keepAlive = false,
   });
 
   final bool running;
@@ -27,6 +29,10 @@ class WebServerState {
   final int requestCount;
   final String? error;
 
+  /// Whether the foreground service that survives the screen going off is up.
+  /// False on platforms that have no such service, and if Android refused it.
+  final bool keepAlive;
+
   WebServerState copyWith({
     bool? running,
     bool? starting,
@@ -34,6 +40,7 @@ class WebServerState {
     int? port,
     int? requestCount,
     String? error,
+    bool? keepAlive,
     bool clearError = false,
   }) =>
       WebServerState(
@@ -43,6 +50,7 @@ class WebServerState {
         port: port ?? this.port,
         requestCount: requestCount ?? this.requestCount,
         error: clearError ? null : (error ?? this.error),
+        keepAlive: keepAlive ?? this.keepAlive,
       );
 }
 
@@ -51,10 +59,20 @@ class WebServerState {
 /// Bound to `anyIPv4` so it is reachable from other machines on the Wi-Fi
 /// network. There is no authentication by design — see the warning shown on the
 /// Server screen.
+///
+/// While it is running, [ServerKeepAlive] holds the process in the foreground
+/// so that locking the phone does not take the server down with the screen.
 class WebServerService {
-  WebServerService(this._db);
+  WebServerService(this._db, {ServerKeepAlive? keepAlive})
+      : _keepAlive = keepAlive ?? ServerKeepAlive() {
+    // The service stops itself before telling us, so this must not tell it to
+    // stop again.
+    _keepAlive.onStopRequested = () => unawaited(stop(notifyService: false));
+    _keepAlive.listen();
+  }
 
   final AppDatabase _db;
+  final ServerKeepAlive _keepAlive;
 
   HttpServer? _server;
   int _requestCount = 0;
@@ -91,12 +109,16 @@ class WebServerService {
 
         final ip = await lanAddress();
         final url = 'http://${ip ?? 'localhost'}:$port';
+        // Started before the state is published so the Server screen never
+        // shows "running" while the process is still droppable.
+        final keptAlive = await _keepAlive.start(url);
         _emit(WebServerState(
           running: true,
           starting: false,
           url: url,
           port: port,
           requestCount: 0,
+          keepAlive: keptAlive,
         ));
         return _state;
       } on SocketException catch (e) {
@@ -115,12 +137,16 @@ class WebServerService {
     return _state;
   }
 
-  Future<void> stop() async {
+  /// [notifyService] is false only when the stop request came from the
+  /// foreground service itself — the notification's Stop action, or the task
+  /// being swiped away.
+  Future<void> stop({bool notifyService = true}) async {
     final server = _server;
     _server = null;
     if (server != null) {
       await server.close(force: true);
     }
+    if (notifyService) await _keepAlive.stop();
     _emit(const WebServerState());
   }
 
