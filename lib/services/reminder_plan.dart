@@ -75,14 +75,19 @@ abstract final class ReminderPlan {
 
   /// Every reminder that should exist between [now] and the end of the window,
   /// in firing order. Times in the past are left out.
+  ///
+  /// When [doneForToday] is set, today is skipped entirely — see
+  /// [isDoneForToday].
   static List<PlannedReminder> build({
     required AppSettings settings,
     required DateTime now,
+    bool doneForToday = false,
   }) {
     final plan = <PlannedReminder>[];
     if (!settings.remindersEnabled) return plan;
 
     for (var day = 0; day < horizonDays; day++) {
+      if (day == 0 && doneForToday) continue;
       final date = DateTime(now.year, now.month, now.day + day);
 
       final daily = DateTime(date.year, date.month, date.day,
@@ -129,6 +134,28 @@ abstract final class ReminderPlan {
 
     plan.sort((a, b) => a.at.compareTo(b.at));
     return plan;
+  }
+
+  /// Whether the day's studying is already done, in which case no reminder
+  /// should fire again until tomorrow.
+  ///
+  /// Both halves are needed. "Nothing is due right now" alone would silence a
+  /// morning where the day's cards are not due until the afternoon. "The user
+  /// reviewed today" alone would silence a session abandoned a third of the
+  /// way through, which is exactly when a reminder earns its keep.
+  ///
+  /// Together they mean: they sat down, and they got to the end of the queue.
+  /// Cards that come back later the same day are the learning-step repeats of
+  /// cards just seen, and nagging about those is what made reminders feel like
+  /// they fired regardless of what the user did.
+  static bool isDoneForToday({
+    required DateTime now,
+    required DateTime? lastReviewLocal,
+    required int dueNow,
+  }) {
+    if (lastReviewLocal == null || dueNow > 0) return false;
+    final midnight = DateTime(now.year, now.month, now.day);
+    return !lastReviewLocal.isBefore(midnight);
   }
 
   /// "2 hours", "90 minutes" — the tail of "… left today".

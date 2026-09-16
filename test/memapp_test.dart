@@ -419,6 +419,92 @@ void main() {
     });
   });
 
+  group('reminder counts', () {
+    DateTime startOfToday() {
+      final now = DateTime.now();
+      return DateTime(now.year, now.month, now.day);
+    }
+
+    test('a finished session leaves nothing outstanding, learning steps and all',
+        () async {
+      final topicId = await db.createTopic(name: 'Rust');
+      for (var i = 0; i < 5; i++) {
+        await addCard(topicId, front: 'Q$i');
+      }
+
+      // Work through the whole queue the way the review screen does, with a
+      // rating that sends cards straight back into a short learning step.
+      for (final card in await db.dueCards(topicId: topicId)) {
+        await scheduler.rate(card, fsrs.Rating.again);
+      }
+
+      final now = DateTime.now().toUtc();
+      final laterToday = now.add(const Duration(hours: 6));
+
+      // This is the behaviour that made reminders feel arbitrary: minutes
+      // after clearing the queue, the raw due count is back up.
+      expect(await db.dueCountsAt(laterToday), isNotEmpty);
+
+      // Excluding what was already answered today, there is nothing left.
+      expect(
+        await db.dueCountsAt(laterToday,
+            excludeReviewedSince: startOfToday().toUtc()),
+        isEmpty,
+      );
+    });
+
+    test('cards never touched today stay outstanding', () async {
+      final topicId = await db.createTopic(name: 'Rust');
+      final reviewed = await addCard(topicId, front: 'seen');
+      await addCard(topicId, front: 'untouched');
+      await scheduler.rate(reviewed, fsrs.Rating.good);
+
+      final counts = await db.dueCountsAt(
+        DateTime.now().toUtc().add(const Duration(hours: 6)),
+        excludeReviewedSince: startOfToday().toUtc(),
+      );
+
+      expect(counts, hasLength(1));
+      expect(counts.single.due, 1);
+    });
+
+    test('yesterday\'s reviews do not excuse today', () async {
+      final topicId = await db.createTopic(name: 'Rust');
+      final card = await addCard(topicId);
+      await scheduler.rate(card, fsrs.Rating.again);
+
+      // Backdate the log and make the card due now, as an overnight gap would.
+      final yesterday = DateTime.now().toUtc().subtract(const Duration(days: 1));
+      await db.customStatement(
+          'UPDATE review_logs SET reviewed_at_utc = ?', [
+        yesterday.millisecondsSinceEpoch ~/ 1000,
+      ]);
+      await db.customStatement('UPDATE cards SET due_utc = ?', [
+        DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
+      ]);
+
+      final counts = await db.dueCountsAt(
+        DateTime.now().toUtc(),
+        excludeReviewedSince: startOfToday().toUtc(),
+      );
+
+      expect(counts.single.due, 1);
+    });
+
+    test('lastReviewAt tracks the most recent grading', () async {
+      final topicId = await db.createTopic(name: 'Rust');
+      expect(await db.lastReviewAt(), isNull);
+
+      final card = await addCard(topicId);
+      final before = DateTime.now().toUtc();
+      await scheduler.rate(card, fsrs.Rating.good);
+
+      final last = await db.lastReviewAt();
+      expect(last, isNotNull);
+      expect(last!.toUtc().difference(before).inMinutes.abs(), lessThan(2));
+    });
+  });
+
   group('cascading deletes', () {
     test('deleting a topic removes its cards and their logs', () async {
       final topicId = await db.createTopic(name: 'Rust');

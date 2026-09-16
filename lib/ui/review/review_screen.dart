@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,6 +33,11 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   DateTime _shownAt = DateTime.now();
   final _counts = <fsrs.Rating, int>{};
   Duration _timeSpent = Duration.zero;
+
+  /// Set by every grading, cleared once the reminder window has been rebuilt.
+  /// A session abandoned halfway still changes what is outstanding today, so
+  /// the rebuild has to happen on the way out as well as at the end.
+  bool _remindersStale = false;
 
   /// Snapshot of the last graded card so a mis-tap can be walked back.
   ({MemCard card, int logId})? _lastReview;
@@ -69,6 +76,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
           .rate(card, rating, timeSpent: elapsed);
 
       if (!mounted) return;
+      _remindersStale = true;
       setState(() {
         _counts[rating] = (_counts[rating] ?? 0) + 1;
         _timeSpent += elapsed;
@@ -93,6 +101,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     setState(() => _busy = true);
     await ref.read(schedulerServiceProvider).undo(last.card, last.logId);
     if (!mounted) return;
+    _remindersStale = true;
     setState(() {
       _index = (_index - 1).clamp(0, _queue.length);
       _queue[_index] = last.card;
@@ -103,13 +112,30 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     });
   }
 
-  Future<void> _finish() async {
-    // Due counts changed, so the pre-computed reminder window is now stale.
+  /// Rebuilds the pre-computed reminder window after the queue has changed.
+  /// Cheap to call twice — the second call is a no-op.
+  Future<void> _syncReminders() async {
+    if (!_remindersStale) return;
+    _remindersStale = false;
     await refreshRemindersFrom(ref);
   }
 
+  Future<void> _finish() => _syncReminders();
+
   @override
   Widget build(BuildContext context) {
+    // Walking out mid-session counts as studying too, so the reminders for the
+    // rest of today are rebuilt on the way out rather than waiting for the app
+    // to be backgrounded and resumed.
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) unawaited(_syncReminders());
+      },
+      child: _buildSession(context),
+    );
+  }
+
+  Widget _buildSession(BuildContext context) {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.title)),

@@ -25,6 +25,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final serverState = ref.watch(webServerStateProvider).valueOrNull;
+    final doneToday =
+        ref.watch(remindersDoneTodayProvider).valueOrNull ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -37,9 +39,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               SwitchListTile(
                 value: settings.remindersEnabled,
                 title: const Text('Daily review reminder'),
-                subtitle: Text(settings.remindersEnabled
-                    ? 'Every day at ${settings.reminderTime.format(context)}'
-                    : 'Off'),
+                subtitle: Text(
+                  !settings.remindersEnabled
+                      ? 'Off'
+                      : doneToday
+                          ? 'Every day at '
+                              '${settings.reminderTime.format(context)} · '
+                              'silent for the rest of today, you are done'
+                          : 'Every day at '
+                              '${settings.reminderTime.format(context)}',
+                ),
                 onChanged: _toggleReminders,
               ),
               ListTile(
@@ -60,7 +69,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ? '${settings.eveningNudgeCount} more reminders across the '
                         'last ${settings.eveningNudgeWindowHours} '
                         '${settings.eveningNudgeWindowHours == 1 ? 'hour' : 'hours'} '
-                        'of the day, while cards are still due'
+                        'of the day, only while cards you have not seen today '
+                        'are still waiting'
                     : 'One reminder a day, and that is it'),
                 onChanged: settings.remindersEnabled ? _toggleNudges : null,
               ),
@@ -280,8 +290,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ?.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(
-                    'Each one is only sent if cards are still due when it '
-                    'fires. Reviewing cancels the rest of the evening.',
+                    'Sent only while cards you have not already answered today '
+                    'are waiting. Clearing the queue silences the rest of the '
+                    'day, learning-step repeats included.',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),

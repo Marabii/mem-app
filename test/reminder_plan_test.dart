@@ -169,6 +169,80 @@ void main() {
         DateTime(2026, 9, 1, 23, 0));
   });
 
+  group('done for today', () {
+    final now = DateTime(2026, 8, 13, 9, 30);
+
+    test('a cleared queue after reviewing silences the rest of the day', () {
+      expect(
+        ReminderPlan.isDoneForToday(
+          now: now,
+          lastReviewLocal: DateTime(2026, 8, 13, 9, 25),
+          dueNow: 0,
+        ),
+        isTrue,
+      );
+    });
+
+    test('an abandoned session still gets reminders', () {
+      expect(
+        ReminderPlan.isDoneForToday(
+          now: now,
+          lastReviewLocal: DateTime(2026, 8, 13, 9, 25),
+          dueNow: 12,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a quiet morning is not the same as a finished one', () {
+      // Nothing due yet, but nothing reviewed today either — the cards coming
+      // due this afternoon still deserve their reminder.
+      expect(
+        ReminderPlan.isDoneForToday(
+          now: now,
+          lastReviewLocal: DateTime(2026, 8, 12, 21, 0),
+          dueNow: 0,
+        ),
+        isFalse,
+      );
+      expect(
+        ReminderPlan.isDoneForToday(now: now, lastReviewLocal: null, dueNow: 0),
+        isFalse,
+      );
+    });
+
+    test('yesterday just before midnight does not count as today', () {
+      expect(
+        ReminderPlan.isDoneForToday(
+          now: now,
+          lastReviewLocal: DateTime(2026, 8, 12, 23, 59),
+          dueNow: 0,
+        ),
+        isFalse,
+      );
+      expect(
+        ReminderPlan.isDoneForToday(
+          now: now,
+          lastReviewLocal: DateTime(2026, 8, 13, 0, 0),
+          dueNow: 0,
+        ),
+        isTrue,
+      );
+    });
+
+    test('drops the whole of today and leaves the following days alone', () {
+      final plan = ReminderPlan.build(
+        settings: on,
+        now: DateTime(2026, 8, 13, 8),
+        doneForToday: true,
+      );
+
+      expect(onDay(plan, DateTime(2026, 8, 13)), isEmpty);
+      expect(onDay(plan, DateTime(2026, 8, 14)), hasLength(5));
+      expect(plan.first.at, DateTime(2026, 8, 14, 9, 0));
+    });
+  });
+
   test('describeTimeLeft reads naturally', () {
     expect(ReminderPlan.describeTimeLeft(120), '2 hours');
     expect(ReminderPlan.describeTimeLeft(60), '1 hour');

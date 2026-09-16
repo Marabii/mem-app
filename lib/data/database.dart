@@ -292,19 +292,40 @@ class AppDatabase extends _$AppDatabase {
 
   /// Due counts per topic at an arbitrary instant. Used to write the body text
   /// of each scheduled reminder ("12 cards due — Rust (7), DSA (5)").
-  Future<List<({String topic, int due})>> dueCountsAt(DateTime instant) async {
+  ///
+  /// [excludeReviewedSince] leaves out cards already graded since that moment.
+  /// Reminders pass today's midnight so they count *unfinished* work: FSRS
+  /// hands a card back with a one-to-ten-minute learning step, so the raw due
+  /// count is above zero again within minutes of a session ending, and
+  /// reminding someone about cards they just answered is how a reminder starts
+  /// to feel like it fires regardless of what they did.
+  Future<List<({String topic, int due})>> dueCountsAt(
+    DateTime instant, {
+    DateTime? excludeReviewedSince,
+  }) async {
+    final variables = [Variable.withDateTime(instant)];
+    var unreviewed = '';
+    if (excludeReviewedSince != null) {
+      variables.add(Variable.withDateTime(excludeReviewedSince));
+      unreviewed = '''
+        AND NOT EXISTS (
+          SELECT 1 FROM review_logs l
+          WHERE l.card_id = c.id AND l.reviewed_at_utc >= ?
+        )''';
+    }
+
     final rows = await customSelect(
       '''
       SELECT t.name AS name, COUNT(c.id) AS due_count
       FROM topics t
       JOIN cards c ON c.topic_id = t.id
-      WHERE c.suspended = 0 AND c.due_utc <= ?
+      WHERE c.suspended = 0 AND c.due_utc <= ?$unreviewed
       GROUP BY t.id
       HAVING due_count > 0
       ORDER BY due_count DESC
       ''',
-      variables: [Variable.withDateTime(instant)],
-      readsFrom: {topics, cards},
+      variables: variables,
+      readsFrom: {topics, cards, reviewLogs},
     ).get();
     return rows
         .map((r) => (topic: r.read<String>('name'), due: r.read<int>('due_count')))
@@ -327,6 +348,21 @@ class AppDatabase extends _$AppDatabase {
           .get();
 
   Future<List<CardReview>> allLogs() => select(reviewLogs).get();
+
+  /// When the user last graded a card, or null if they never have.
+  ///
+  /// This is what tells reminders whether today's studying has happened at
+  /// all; "nothing is due" cannot, because a morning with nothing due yet
+  /// looks identical to a morning that has already been dealt with.
+  ///
+  /// The instant is exact; its timezone flag follows drift's convention, so
+  /// callers convert explicitly.
+  Future<DateTime?> lastReviewAt() async {
+    final latest = reviewLogs.reviewedAtUtc.max();
+    final row =
+        await (selectOnly(reviewLogs)..addColumns([latest])).getSingleOrNull();
+    return row?.read(latest);
+  }
 
   Future<int> deleteLog(int id) =>
       (delete(reviewLogs)..where((l) => l.id.equals(id))).go();

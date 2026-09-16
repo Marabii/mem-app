@@ -113,6 +113,14 @@ final quizHistoryProvider = StreamProvider<List<QuizSession>>((ref) {
   return ref.watch(databaseProvider).watchQuizSessions();
 });
 
+/// True while today's reminders are being held back because the queue has
+/// already been worked through. Watching the due count re-runs this after
+/// every review, so the Settings screen reflects it immediately.
+final remindersDoneTodayProvider = FutureProvider<bool>((ref) async {
+  ref.watch(dueCountProvider(null));
+  return ref.watch(notificationServiceProvider).isDoneForToday();
+});
+
 // --------------------------------------------------------------------- AI
 
 /// Kept out of [settingsProvider] because it lives in encrypted storage rather

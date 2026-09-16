@@ -108,9 +108,12 @@ class NotificationService {
     await _clearWindow();
     if (!settings.remindersEnabled) return;
 
+    final now = DateTime.now();
+    final dayStartUtc = _startOfDay(now).toUtc();
     final plan = ReminderPlan.build(
       settings: settings,
-      now: DateTime.now(),
+      now: now,
+      doneForToday: await isDoneForToday(now),
     );
 
     for (final reminder in plan) {
@@ -124,10 +127,14 @@ class NotificationService {
       );
 
       // Cards due *at that moment*, not right now — a card due in three days
-      // belongs to day 3's reminder, and a nudge is worth sending only if the
-      // work is still outstanding when it fires. Reviewing rebuilds this
-      // window, so cleared cards never produce a nudge.
-      final counts = await _db.dueCountsAt(fireAt.toUtc());
+      // belongs to day 3's reminder. For the rest of today the count also
+      // ignores cards already answered since midnight, so the learning-step
+      // repeats a session leaves behind cannot resurrect an evening's worth of
+      // reminders. Tomorrow onwards, every card is fair game again.
+      final counts = await _db.dueCountsAt(
+        fireAt.toUtc(),
+        excludeReviewedSince: _isToday(reminder.at, now) ? dayStartUtc : null,
+      );
       final total = counts.fold<int>(0, (sum, e) => sum + e.due);
       if (total == 0) continue;
 
@@ -142,6 +149,34 @@ class NotificationService {
       );
     }
   }
+
+  /// Whether the rest of today's reminders should be dropped because the user
+  /// has already sat down and worked through everything waiting.
+  ///
+  /// Public so the Settings screen can say as much, rather than leaving the
+  /// user wondering where their reminders went.
+  Future<bool> isDoneForToday([DateTime? at]) async {
+    final now = at ?? DateTime.now();
+    final lastReview = await _db.lastReviewAt();
+    // Only cards they have *not* already answered today count as outstanding.
+    final outstanding = await _db.dueCountsAt(
+      now.toUtc(),
+      excludeReviewedSince: _startOfDay(now).toUtc(),
+    );
+    return ReminderPlan.isDoneForToday(
+      now: now,
+      lastReviewLocal: lastReview?.toLocal(),
+      dueNow: outstanding.fold<int>(0, (sum, e) => sum + e.due),
+    );
+  }
+
+  static DateTime _startOfDay(DateTime local) =>
+      DateTime(local.year, local.month, local.day);
+
+  static bool _isToday(DateTime candidate, DateTime now) =>
+      candidate.year == now.year &&
+      candidate.month == now.month &&
+      candidate.day == now.day;
 
   /// Drops both the alarms that have not fired yet and any nudge still sitting
   /// in the shade — including the final one, which is posted as ongoing and so
